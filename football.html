@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title> 예약 시스템</title>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 50px;
+        }
+        table, th, td {
+            border: 1px solid #000;
+        }
+        th, td {
+            padding: 10px;
+            text-align: center;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .time-slot {
+            height: 40px;
+            position: relative;
+        }
+        .time-slot span {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+        }
+        .occupied {
+            color: white;
+            font-weight: bold;
+        }
+        .available {
+            background-color: white;
+        }
+        .form-container {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>풋살장 예약 시스템</h1>
+
+    <!-- 예약 현황 확인 폼 -->
+    <div class="form-container">
+        <label for="year">년도:</label>
+        <select id="year">
+            <option value="2024">2024</option>
+            <option value="2025">2025</option>
+        </select>
+        <label for="month">월:</label>
+        <select id="month">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+            <option value="6">6</option>
+            <option value="7">7</option>
+            <option value="8">8</option>
+            <option value="9">9</option>
+            <option value="10">10</option>
+            <option value="11">11</option>
+            <option value="12">12</option>
+        </select>
+        <label for="week">주차:</label>
+        <select id="week">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+        </select>
+        <br>
+        <label for="place">이용 장소:</label>
+        <select id="place">
+            <option value="종합경기장">종합경기장</option>
+            <option value="4체련장 풋살장">4체련장 풋살장</option>
+            <option value="종합체련장">종합체련장</option>
+        </select>
+        <br>
+        <button onclick="loadReservations()">예약상태 확인</button>
+    </div>
+
+    <!-- 예약 폼 -->
+    <div class="form-container">
+        <label for="startTime">시작 시간:</label>
+        <select id="startTime">
+            <option value="18:30">18:30</option>
+            <option value="19:00">19:00</option>
+            <option value="19:30">19:30</option>
+            <option value="20:00">20:00</option>
+            <option value="20:30">20:30</option>
+            <option value="21:00">21:00</option>
+        </select>
+        <br>
+        <label for="duration">이용 시간:</label>
+        <select id="duration">
+            <option value="30">30분</option>
+            <option value="60">60분</option>
+            <option value="90">90분</option>
+        </select>
+        <br>
+        <label for="day">요일:</label>
+        <select id="day">
+            <option value="월요일">월요일</option>
+            <option value="화요일">화요일</option>
+            <option value="수요일">수요일</option>
+            <option value="목요일">목요일</option>
+            <option value="금요일">금요일</option>
+            <option value="토요일">토요일</option>
+            <option value="일요일">일요일</option>
+        </select>
+        <br>
+        <label for="name">이름:</label>
+        <input type="text" id="name">
+        <br>
+        <label for="password">비밀번호:</label>
+        <input type="password" id="password">
+        <br>
+        <button onclick="makeReservation()">예약하기</button>
+    </div>
+
+    <!-- 예약 현황 테이블 -->
+    <table id="reservationTable"></table>
+
+    <script>
+        const storageKey = "reservations";
+        let reservations = JSON.parse(localStorage.getItem(storageKey)) || {};
+
+        function stringToColor(str) {
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                hash = str.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            let color = '#';
+            for (let i = 0; i < 3; i++) {
+                color += ('00' + ((hash >> (i * 8)) & 0xFF).toString(16)).slice(-2);
+            }
+            return color;
+        }
+
+        function loadReservations() {
+            const year = document.getElementById("year").value;
+            const month = document.getElementById("month").value;
+            const week = document.getElementById("week").value;
+            const place = document.getElementById("place").value;
+            const key = `${year}-${month}-${week}-${place}`;
+            const weekReservations = reservations[key] || [];
+
+            const timeLabels = [
+                { start: "18:30", end: "19:00" },
+                { start: "19:00", end: "19:30" },
+                { start: "19:30", end: "20:00" },
+                { start: "20:00", end: "20:30" },
+                { start: "20:30", end: "21:00" },
+                { start: "21:00", end: "21:30" }
+            ];
+            const days = ["월요일", "화요일", "수요일", "목요일", "금요일", "토요일", "일요일"];
+
+            const timeSlots = Array.from({ length: 7 }, () => Array(timeLabels.length).fill(null));
+
+            weekReservations.forEach(reservation => {
+                if (reservation.place === place) {
+                    const dayIndex = days.indexOf(reservation.day);
+                    const startIndex = timeLabels.findIndex(label => label.start === reservation.startTime);
+                    const durationSlots = Math.ceil(reservation.duration / 30);
+
+                    for (let i = startIndex; i < startIndex + durationSlots; i++) {
+                        if (i >= timeLabels.length) break;
+                        timeSlots[dayIndex][i] = reservation;
+                    }
+                }
+            });
+
+            let tableHTML = "<tr><th>시간</th>";
+            days.forEach(day => {
+                tableHTML += `<th>${day}</th>`;
+            });
+            tableHTML += "</tr>";
+
+            timeLabels.forEach((time, i) => {
+                tableHTML += `<tr><td>${time.start}-${time.end}</td>`;
+                timeSlots.forEach(daySlots => {
+                    const reservation = daySlots[i];
+                    tableHTML += `<td class="time-slot${reservation ? ' occupied' : ' available'}" style="background-color: ${reservation ? stringToColor(reservation.name) : 'white'}">
+                                    <span>${reservation ? reservation.name : ''}</span>
+                                  </td>`;
+                });
+                tableHTML += "</tr>";
+            });
+
+            document.getElementById("reservationTable").innerHTML = tableHTML;
+        }
+
+        function makeReservation() {
+            const year = document.getElementById("year").value;
+            const month = document.getElementById("month").value;
+            const week = document.getElementById("week").value;
+            const place = document.getElementById("place").value;
+            const startTime = document.getElementById("startTime").value;
+            const duration = parseInt(document.getElementById("duration").value);
+            const name = document.getElementById("name").value;
+            const password = document.getElementById("password").value;
+            const day = document.getElementById("day").value;
+
+            if (!name || !password) {
+                alert("이름과 비밀번호를 입력해주세요.");
+                return;
+            }
+
+            const timeLabels = [
+                { start: "18:30", end: "19:00" },
+                { start: "19:00", end: "19:30" },
+                { start: "19:30", end: "20:00" },
+                { start: "20:00", end: "20:30" },
+                { start: "20:30", end: "21:00" },
+                { start: "21:00", end: "21:30" }
+            ];
+
+            const key = `${year}-${month}-${week}-${place}`;
+            const weekReservations = reservations[key] || [];
+
+            const startIndex = timeLabels.findIndex(label => label.start === startTime);
+            const endIndex = startIndex + Math.ceil(duration / 30);
+
+            if (endIndex > timeLabels.length) {
+                alert("21:30 이후 시간은 예약할 수 없습니다.");
+                return;
+            }
+
+            const conflictingReservation = weekReservations.some(reservation =>
+                reservation.day === day &&
+                (reservation.startTime === startTime ||
+                    (timeLabels.findIndex(label => label.start === reservation.startTime) < endIndex &&
+                        timeLabels.findIndex(label => label.end === reservation.startTime) >= startIndex))
+            );
+
+            if (conflictingReservation) {
+                alert("이미 예약된 시간대입니다. 다른 시간대나 날짜를 선택해주세요.");
+                return;
+            }
+
+            weekReservations.push({ place, startTime, duration, name, password, day });
+            reservations[key] = weekReservations;
+            localStorage.setItem(storageKey, JSON.stringify(reservations));
+
+            loadReservations();
+        }
+
+        loadReservations();
+    </script>
+</body>
+</html>
+
+
+
